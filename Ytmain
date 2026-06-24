@@ -44,6 +44,10 @@
 // @match           https://www.youtube.com/*
 // @match           http://youtube.com/*
 // @match           https://youtube.com/*
+// @match           http://music.youtube.com/*
+// @match           https://music.youtube.com/*
+// @match           http://m.youtube.com/*
+// @match           https://m.youtube.com/*
 // @match           https://yeppha.github.io/downloads/YouTubeCenter.meta.js
 // @match           http://s.ytimg.com/yts/jsbin/*
 // @match           https://s.ytimg.com/yts/jsbin/*
@@ -59,6 +63,10 @@
 // @include         https://www.youtube.com/*
 // @include         http://youtube.com/*
 // @include         https://youtube.com/*
+// @include         http://music.youtube.com/*
+// @include         https://music.youtube.com/*
+// @include         http://m.youtube.com/*
+// @include         https://m.youtube.com/*
 // @include         http://apis.google.com/*/widget/render/comments?*
 // @include         https://apis.google.com/*/widget/render/comments?*
 // @include         http://plus.googleapis.com/*/widget/render/comments?*
@@ -72,7 +80,23 @@
 // @grant           GM_xmlhttpRequest
 // @grant           GM_log
 // @grant           GM_registerMenuCommand
+// @grant           GM.getValue
+// @grant           GM.setValue
+// @grant           GM.xmlHttpRequest
+// @grant           GM.registerMenuCommand
 // @grant           unsafeWindow
+// @connect         self
+// @connect         youtube.com
+// @connect         www.youtube.com
+// @connect         music.youtube.com
+// @connect         video.google.com
+// @connect         googleapis.com
+// @connect         www.googleapis.com
+// @connect         api.github.com
+// @connect         github.com
+// @connect         raw.github.com
+// @connect         raw.githubusercontent.com
+// @connect         yeppha.github.io
 // @updateURL       https://github.com/YePpHa/YouTubeCenter/raw/master/dist/YouTubeCenter.meta.js
 // @downloadURL     https://github.com/YePpHa/YouTubeCenter/raw/master/dist/YouTubeCenter.user.js
 // @updateVersion   155
@@ -156,6 +180,11 @@
     expires = 0 > expires ? "" : 0 == expires ? ";expires=" + (new Date(1970, 1, 1)).toUTCString() : ";expires=" + (new Date(now() + 1E3 * expires)).toUTCString();
     
     document.cookie = encodeURIComponent(name) + "=" + encodeURIComponent(value) + domain + path + expires;
+    try {
+      var modernDomain = domain ? ";domain=" + String(domain).replace(/^;domain=/, "").replace(/%2E/ig, ".") : "";
+      var modernSecure = loc && loc.protocol === "https:" ? ";Secure" : "";
+      document.cookie = encodeURIComponent(name) + "=" + encodeURIComponent(value) + modernDomain + path + expires + ";SameSite=Lax" + modernSecure;
+    } catch (e) { }
   }
   
   function getCookie(key) {
@@ -26176,6 +26205,11 @@
     expires = 0 > expires ? "" : 0 == expires ? ";expires=" + (new Date(1970, 1, 1)).toUTCString() : ";expires=" + (new Date(now() + 1E3 * expires)).toUTCString();
     
     document.cookie = encodeURIComponent(name) + "=" + encodeURIComponent(value) + domain + path + expires;
+    try {
+      var modernDomain = domain ? ";domain=" + String(domain).replace(/^;domain=/, "").replace(/%2E/ig, ".") : "";
+      var modernSecure = loc && loc.protocol === "https:" ? ";Secure" : "";
+      document.cookie = encodeURIComponent(name) + "=" + encodeURIComponent(value) + modernDomain + path + expires + ";SameSite=Lax" + modernSecure;
+    } catch (e) { }
   }
 
   function getCookie(key) {
@@ -26602,6 +26636,10 @@
       setTimeout(function(){
         GM_xmlhttpRequest(details);
       }, 7);
+    } else if (hasModernGMMethod("xmlHttpRequest")) {
+      setTimeout(function(){
+        getModernGM().xmlHttpRequest(details);
+      }, 7);
     } else {
       var xmlhttp;
       if (typeof XMLHttpRequest != "undefined") {
@@ -26647,6 +26685,34 @@
     }
   }
 
+  function getModernGM() {
+    try {
+      if (typeof GM === "object" && GM) return GM;
+    } catch (e) { }
+    return null;
+  }
+
+  function hasModernGMMethod(name) {
+    var modernGM = getModernGM();
+    return !!(modernGM && typeof modernGM[name] === "function");
+  }
+
+  function modernGMValueCallback(promise, id) {
+    promise.then(function(value){
+      callUnsafeWindow(id, value || "{}");
+    }, function(){
+      callUnsafeWindow(id, "{}");
+    });
+  }
+
+  function modernGMDirectValueCallback(promise, callback) {
+    promise.then(function(value){
+      callback(value || "{}");
+    }, function(){
+      callback("{}");
+    });
+  }
+
   function createCallableDetails(details) {
     var callback = ["abort", "error", "load", "progress", "readystatechange", "timeout"];
     for (var i = 0, len = callback.length; i < len; i++) {
@@ -26675,6 +26741,8 @@
   function defaultSave(id, key, data) {
     if (support.Greasemonkey) {
       callUnsafeWindow(id, GM_setValue(key, data));
+    } else if (hasModernGMMethod("setValue")) {
+      getModernGM().setValue(key, data).then(function(){ callUnsafeWindow(id); }, function(){ callUnsafeWindow(id); });
     } else if (support.localStorage) {
       callUnsafeWindow(id, localStorage.setItem(key, data));
     } else {
@@ -26699,6 +26767,8 @@
   function defaultLoad(id, key) {
     if (support.Greasemonkey) {
       callUnsafeWindow(id, GM_getValue(key) || "{}");
+    } else if (hasModernGMMethod("getValue")) {
+      modernGMValueCallback(getModernGM().getValue(key, "{}"), id);
     } else if (support.localStorage) {
       callUnsafeWindow(id, localStorage.getItem(key) || "{}");
     } else {
@@ -26737,6 +26807,8 @@
   function _defaultLoad(key, callback) {
     if (support.Greasemonkey) {
       callback(GM_getValue(key) || "{}");
+    } else if (hasModernGMMethod("getValue")) {
+      modernGMDirectValueCallback(getModernGM().getValue(key, "{}"), callback);
     } else if (support.localStorage) {
       callback(localStorage.getItem(key) || "{}");
     } else {
@@ -26826,7 +26898,7 @@
     }
   }());
   
-  var domains = ["www.youtube.com", "youtube.com", "apis.google.com", "plus.googleapis.com"];
+  var domains = ["www.youtube.com", "youtube.com", "m.youtube.com", "music.youtube.com", "apis.google.com", "plus.googleapis.com"];
   var loc = (function(){
     try {
       if (typeof location !== "undefined") return location;
