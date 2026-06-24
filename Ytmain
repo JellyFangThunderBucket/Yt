@@ -44,6 +44,10 @@
 // @match           https://www.youtube.com/*
 // @match           http://youtube.com/*
 // @match           https://youtube.com/*
+// @match           http://music.youtube.com/*
+// @match           https://music.youtube.com/*
+// @match           http://m.youtube.com/*
+// @match           https://m.youtube.com/*
 // @match           https://yeppha.github.io/downloads/YouTubeCenter.meta.js
 // @match           http://s.ytimg.com/yts/jsbin/*
 // @match           https://s.ytimg.com/yts/jsbin/*
@@ -59,6 +63,10 @@
 // @include         https://www.youtube.com/*
 // @include         http://youtube.com/*
 // @include         https://youtube.com/*
+// @include         http://music.youtube.com/*
+// @include         https://music.youtube.com/*
+// @include         http://m.youtube.com/*
+// @include         https://m.youtube.com/*
 // @include         http://apis.google.com/*/widget/render/comments?*
 // @include         https://apis.google.com/*/widget/render/comments?*
 // @include         http://plus.googleapis.com/*/widget/render/comments?*
@@ -72,7 +80,23 @@
 // @grant           GM_xmlhttpRequest
 // @grant           GM_log
 // @grant           GM_registerMenuCommand
+// @grant           GM.getValue
+// @grant           GM.setValue
+// @grant           GM.xmlHttpRequest
+// @grant           GM.registerMenuCommand
 // @grant           unsafeWindow
+// @connect         self
+// @connect         youtube.com
+// @connect         www.youtube.com
+// @connect         music.youtube.com
+// @connect         video.google.com
+// @connect         googleapis.com
+// @connect         www.googleapis.com
+// @connect         api.github.com
+// @connect         github.com
+// @connect         raw.github.com
+// @connect         raw.githubusercontent.com
+// @connect         yeppha.github.io
 // @updateURL       https://github.com/YePpHa/YouTubeCenter/raw/master/dist/YouTubeCenter.meta.js
 // @downloadURL     https://github.com/YePpHa/YouTubeCenter/raw/master/dist/YouTubeCenter.user.js
 // @updateVersion   155
@@ -156,6 +180,11 @@
     expires = 0 > expires ? "" : 0 == expires ? ";expires=" + (new Date(1970, 1, 1)).toUTCString() : ";expires=" + (new Date(now() + 1E3 * expires)).toUTCString();
     
     document.cookie = encodeURIComponent(name) + "=" + encodeURIComponent(value) + domain + path + expires;
+    try {
+      var modernDomain = domain ? ";domain=" + String(domain).replace(/^;domain=/, "").replace(/%2E/ig, ".") : "";
+      var modernSecure = loc && loc.protocol === "https:" ? ";Secure" : "";
+      document.cookie = encodeURIComponent(name) + "=" + encodeURIComponent(value) + modernDomain + path + expires + ";SameSite=Lax" + modernSecure;
+    } catch (e) { }
   }
   
   function getCookie(key) {
@@ -26176,6 +26205,11 @@
     expires = 0 > expires ? "" : 0 == expires ? ";expires=" + (new Date(1970, 1, 1)).toUTCString() : ";expires=" + (new Date(now() + 1E3 * expires)).toUTCString();
     
     document.cookie = encodeURIComponent(name) + "=" + encodeURIComponent(value) + domain + path + expires;
+    try {
+      var modernDomain = domain ? ";domain=" + String(domain).replace(/^;domain=/, "").replace(/%2E/ig, ".") : "";
+      var modernSecure = loc && loc.protocol === "https:" ? ";Secure" : "";
+      document.cookie = encodeURIComponent(name) + "=" + encodeURIComponent(value) + modernDomain + path + expires + ";SameSite=Lax" + modernSecure;
+    } catch (e) { }
   }
 
   function getCookie(key) {
@@ -26602,6 +26636,10 @@
       setTimeout(function(){
         GM_xmlhttpRequest(details);
       }, 7);
+    } else if (hasModernGMMethod("xmlHttpRequest")) {
+      setTimeout(function(){
+        getModernGM().xmlHttpRequest(details);
+      }, 7);
     } else {
       var xmlhttp;
       if (typeof XMLHttpRequest != "undefined") {
@@ -26647,6 +26685,34 @@
     }
   }
 
+  function getModernGM() {
+    try {
+      if (typeof GM === "object" && GM) return GM;
+    } catch (e) { }
+    return null;
+  }
+
+  function hasModernGMMethod(name) {
+    var modernGM = getModernGM();
+    return !!(modernGM && typeof modernGM[name] === "function");
+  }
+
+  function modernGMValueCallback(promise, id) {
+    promise.then(function(value){
+      callUnsafeWindow(id, value || "{}");
+    }, function(){
+      callUnsafeWindow(id, "{}");
+    });
+  }
+
+  function modernGMDirectValueCallback(promise, callback) {
+    promise.then(function(value){
+      callback(value || "{}");
+    }, function(){
+      callback("{}");
+    });
+  }
+
   function createCallableDetails(details) {
     var callback = ["abort", "error", "load", "progress", "readystatechange", "timeout"];
     for (var i = 0, len = callback.length; i < len; i++) {
@@ -26675,6 +26741,8 @@
   function defaultSave(id, key, data) {
     if (support.Greasemonkey) {
       callUnsafeWindow(id, GM_setValue(key, data));
+    } else if (hasModernGMMethod("setValue")) {
+      getModernGM().setValue(key, data).then(function(){ callUnsafeWindow(id); }, function(){ callUnsafeWindow(id); });
     } else if (support.localStorage) {
       callUnsafeWindow(id, localStorage.setItem(key, data));
     } else {
@@ -26699,6 +26767,8 @@
   function defaultLoad(id, key) {
     if (support.Greasemonkey) {
       callUnsafeWindow(id, GM_getValue(key) || "{}");
+    } else if (hasModernGMMethod("getValue")) {
+      modernGMValueCallback(getModernGM().getValue(key, "{}"), id);
     } else if (support.localStorage) {
       callUnsafeWindow(id, localStorage.getItem(key) || "{}");
     } else {
@@ -26737,6 +26807,8 @@
   function _defaultLoad(key, callback) {
     if (support.Greasemonkey) {
       callback(GM_getValue(key) || "{}");
+    } else if (hasModernGMMethod("getValue")) {
+      modernGMDirectValueCallback(getModernGM().getValue(key, "{}"), callback);
     } else if (support.localStorage) {
       callback(localStorage.getItem(key) || "{}");
     } else {
@@ -26826,7 +26898,333 @@
     }
   }());
   
-  var domains = ["www.youtube.com", "youtube.com", "apis.google.com", "plus.googleapis.com"];
+  var domains = ["www.youtube.com", "youtube.com", "m.youtube.com", "music.youtube.com", "apis.google.com", "plus.googleapis.com"];
+
+  function initModernCompatibilityLayer() {
+    var prefix = "[YouTubeCenter]";
+    var state = {
+      started: false,
+      videoId: null,
+      buttonsInjected: 0,
+      errors: [],
+      settings: {},
+      features: {}
+    };
+    var defaults = {
+      repeat: false,
+      lightsOff: false,
+      theater: false,
+      resize: "default",
+      aspect: "default",
+      debugPanel: true
+    };
+    var resizeMap = {
+      "default": "",
+      "large": "min(1280px, 96vw)",
+      "wide": "min(1600px, 98vw)",
+      "full": "100vw"
+    };
+    var aspectMap = {
+      "default": "",
+      "16:9": "16 / 9",
+      "4:3": "4 / 3",
+      "21:9": "21 / 9",
+      "1:1": "1 / 1"
+    };
+
+    function log(level, message, data) {
+      try {
+        var fn = console[level] || console.log;
+        if (typeof data === "undefined") fn.call(console, prefix + " " + message);
+        else fn.call(console, prefix + " " + message, data);
+      } catch (e) { }
+    }
+
+    function guard(name, fn) {
+      try {
+        var value = fn();
+        state.features[name] = { loaded: true, lastRun: (new Date()).toISOString() };
+        return value;
+      } catch (e) {
+        state.features[name] = { loaded: false, error: e && (e.stack || e.message || String(e)) };
+        state.errors.push(name + ": " + (e && (e.message || String(e))));
+        log("warn", name + " failed without stopping the script", e);
+        updateDebugPanel();
+      }
+    }
+
+    function loadSettings() {
+      guard("settings-load", function(){
+        var raw = null;
+        try { raw = localStorage.getItem("ytcenter-modern-settings"); } catch (e) { }
+        state.settings = raw ? JSON.parse(raw) : {};
+        for (var key in defaults) if (!(key in state.settings)) state.settings[key] = defaults[key];
+      });
+    }
+
+    function saveSettings() {
+      guard("settings-save", function(){
+        localStorage.setItem("ytcenter-modern-settings", JSON.stringify(state.settings));
+      });
+    }
+
+    function getVideoId() {
+      var url = new URL(location.href);
+      if (url.pathname.indexOf("/shorts/") === 0) return url.pathname.split("/")[2] || null;
+      if (url.pathname.indexOf("/embed/") === 0) return url.pathname.split("/")[2] || null;
+      return url.searchParams.get("v");
+    }
+
+    function getPlayer() {
+      return document.querySelector("#movie_player, ytd-player, #player-container, #player") || null;
+    }
+
+    function getVideo() {
+      return document.querySelector("video.html5-main-video, #movie_player video, ytd-player video, video") || null;
+    }
+
+    function ensureStyle() {
+      guard("modern-css", function(){
+        if (document.getElementById("ytcenter-modern-style")) return;
+        var style = document.createElement("style");
+        style.id = "ytcenter-modern-style";
+        style.textContent = [
+          "#ytcenter-modern-buttons{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:8px 0;z-index:2147483646}",
+          "#ytcenter-modern-buttons button{font:12px/1.2 Arial,sans-serif;border:1px solid var(--yt-spec-10-percent-layer,#ccc);border-radius:18px;background:var(--yt-spec-badge-chip-background,#f2f2f2);color:var(--yt-spec-text-primary,#0f0f0f);padding:7px 10px;cursor:pointer}",
+          "html[dark] #ytcenter-modern-buttons button{background:#272727;color:#fff;border-color:#3f3f3f}",
+          "#ytcenter-modern-lights{position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:2000;pointer-events:none;display:none}",
+          "body.ytcenter-lights-off #ytcenter-modern-lights{display:block}",
+          "body.ytcenter-lights-off ytd-player,body.ytcenter-lights-off #player-container,body.ytcenter-lights-off #movie_player{position:relative;z-index:2001}",
+          "#ytcenter-modern-debug{position:fixed;right:12px;bottom:12px;max-width:320px;background:rgba(20,20,20,.92);color:#fff;font:12px/1.35 monospace;padding:10px;border-radius:8px;z-index:2147483647;box-shadow:0 2px 16px rgba(0,0,0,.45)}",
+          "#ytcenter-modern-debug button{float:right;margin-left:8px}",
+          "#ytcenter-modern-settings{position:fixed;right:12px;top:70px;background:var(--yt-spec-base-background,#fff);color:var(--yt-spec-text-primary,#111);border:1px solid #777;border-radius:8px;padding:12px;z-index:2147483647;box-shadow:0 2px 18px rgba(0,0,0,.35)}",
+          "#ytcenter-modern-settings label{display:block;margin:6px 0}",
+          "#ytcenter-modern-settings select{margin-left:6px}",
+          "ytd-watch-flexy.ytcenter-modern-theater #player-theater-container,ytd-watch-flexy[theater] #player-theater-container{max-height:none!important}",
+          "ytd-watch-flexy.ytcenter-modern-resize #player-container-outer,ytd-watch-flexy.ytcenter-modern-resize #player-container{max-width:var(--ytcenter-player-width)!important;width:var(--ytcenter-player-width)!important}",
+          "ytd-watch-flexy.ytcenter-modern-aspect #player-container,ytd-watch-flexy.ytcenter-modern-aspect #movie_player, ytd-watch-flexy.ytcenter-modern-aspect video{aspect-ratio:var(--ytcenter-aspect)!important}"
+        ].join("\n");
+        document.documentElement.appendChild(style);
+      });
+    }
+
+    function ensureDebugPanel() {
+      guard("debug-panel", function(){
+        if (!state.settings.debugPanel) return;
+        var panel = document.getElementById("ytcenter-modern-debug");
+        if (!panel) {
+          panel = document.createElement("div");
+          panel.id = "ytcenter-modern-debug";
+          var close = document.createElement("button");
+          close.textContent = "×";
+          close.addEventListener("click", function(){ state.settings.debugPanel = false; saveSettings(); panel.remove(); });
+          panel.appendChild(close);
+          var content = document.createElement("div");
+          content.id = "ytcenter-modern-debug-content";
+          panel.appendChild(content);
+          document.documentElement.appendChild(panel);
+        }
+        updateDebugPanel();
+      });
+    }
+
+    function updateDebugPanel() {
+      var content = document.getElementById("ytcenter-modern-debug-content");
+      if (!content) return;
+      var loaded = [];
+      for (var key in state.features) if (state.features[key].loaded) loaded.push(key);
+      content.textContent = "Script loaded: " + (state.started ? "yes" : "no") + "\n" +
+        "Current video detected: " + (state.videoId || "none") + "\n" +
+        "Buttons injected: " + state.buttonsInjected + "\n" +
+        "Features loaded: " + loaded.length + "\n" +
+        "Errors encountered: " + state.errors.length + (state.errors.length ? "\n- " + state.errors.slice(-5).join("\n- ") : "");
+    }
+
+    function ensureLightsLayer() {
+      guard("lights-off", function(){
+        if (!document.getElementById("ytcenter-modern-lights")) {
+          var layer = document.createElement("div");
+          layer.id = "ytcenter-modern-lights";
+          document.documentElement.appendChild(layer);
+        }
+        document.body.classList.toggle("ytcenter-lights-off", !!state.settings.lightsOff);
+      });
+    }
+
+    function applyPlayerState() {
+      guard("player-state", function(){
+        var video = getVideo();
+        if (video) video.loop = !!state.settings.repeat;
+        var flexy = document.querySelector("ytd-watch-flexy");
+        if (flexy) {
+          flexy.classList.toggle("ytcenter-modern-theater", !!state.settings.theater);
+          if (state.settings.theater) flexy.setAttribute("theater", "");
+          else flexy.removeAttribute("theater");
+          flexy.classList.toggle("ytcenter-modern-resize", state.settings.resize !== "default");
+          flexy.style.setProperty("--ytcenter-player-width", resizeMap[state.settings.resize] || "");
+          flexy.classList.toggle("ytcenter-modern-aspect", state.settings.aspect !== "default");
+          flexy.style.setProperty("--ytcenter-aspect", aspectMap[state.settings.aspect] || "");
+        }
+        ensureLightsLayer();
+      });
+    }
+
+    function button(label, title, onClick) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.textContent = label;
+      b.title = title;
+      b.addEventListener("click", function(event){
+        event.preventDefault();
+        guard("button:" + label, onClick);
+        applyPlayerState();
+        injectButtons();
+      });
+      return b;
+    }
+
+    function injectButtons() {
+      guard("custom-buttons", function(){
+        if (!getVideoId()) return;
+        var target = document.querySelector("#top-level-buttons-computed") || document.querySelector("#actions-inner") || document.querySelector("#menu-container") || document.querySelector("#below") || getPlayer();
+        if (!target) return;
+        var bar = document.getElementById("ytcenter-modern-buttons");
+        if (!bar) {
+          bar = document.createElement("div");
+          bar.id = "ytcenter-modern-buttons";
+        }
+        bar.textContent = "";
+        bar.appendChild(button(state.settings.repeat ? "Repeat: on" : "Repeat", "Loop the current HTML5 video", function(){ state.settings.repeat = !state.settings.repeat; saveSettings(); }));
+        bar.appendChild(button(state.settings.theater ? "Theater: on" : "Theater", "Toggle YouTube theater mode styling", function(){ state.settings.theater = !state.settings.theater; saveSettings(); }));
+        bar.appendChild(button(state.settings.lightsOff ? "Lights: off" : "Lights off", "Dim the page around the player", function(){ state.settings.lightsOff = !state.settings.lightsOff; saveSettings(); }));
+        bar.appendChild(button("Resize", "Cycle player resize presets", function(){ var order = ["default", "large", "wide", "full"]; state.settings.resize = order[(order.indexOf(state.settings.resize) + 1) % order.length]; saveSettings(); }));
+        bar.appendChild(button("Aspect", "Cycle aspect ratio presets", function(){ var order = ["default", "16:9", "4:3", "21:9", "1:1"]; state.settings.aspect = order[(order.indexOf(state.settings.aspect) + 1) % order.length]; saveSettings(); }));
+        bar.appendChild(button("Download", "Open YouTube's current video page in a new tab for downloader integrations", function(){ window.open(location.href, "_blank", "noopener"); }));
+        bar.appendChild(button("Streams", "Log current media stream/debug details", function(){ reportStreams(); }));
+        bar.appendChild(button("Settings", "Open YouTube Center compatibility settings", function(){ showSettingsPanel(); }));
+        if (bar.parentNode !== target) target.insertBefore(bar, target.firstChild || null);
+        state.buttonsInjected = bar.querySelectorAll("button").length;
+        updateDebugPanel();
+      });
+    }
+
+    function showSettingsPanel() {
+      guard("settings-panel", function(){
+        var old = document.getElementById("ytcenter-modern-settings");
+        if (old) { old.remove(); return; }
+        var panel = document.createElement("div");
+        panel.id = "ytcenter-modern-settings";
+        panel.innerHTML = '<strong>YouTube Center compatibility</strong>';
+        function checkbox(key, text) {
+          var label = document.createElement("label");
+          var input = document.createElement("input");
+          input.type = "checkbox";
+          input.checked = !!state.settings[key];
+          input.addEventListener("change", function(){ state.settings[key] = input.checked; saveSettings(); applyPlayerState(); ensureDebugPanel(); });
+          label.appendChild(input);
+          label.appendChild(document.createTextNode(" " + text));
+          panel.appendChild(label);
+        }
+        checkbox("repeat", "Repeat video");
+        checkbox("theater", "Theater mode");
+        checkbox("lightsOff", "Lights-off mode");
+        checkbox("debugPanel", "Floating debug panel");
+        var close = document.createElement("button");
+        close.textContent = "Close";
+        close.addEventListener("click", function(){ panel.remove(); });
+        panel.appendChild(close);
+        document.documentElement.appendChild(panel);
+      });
+    }
+
+    function reportStreams() {
+      guard("stream-detection", function(){
+        var video = getVideo();
+        var report = {
+          videoId: state.videoId,
+          currentSrc: video && video.currentSrc || null,
+          src: video && video.src || null,
+          readyState: video && video.readyState,
+          networkState: video && video.networkState,
+          playbackQuality: video && typeof video.getVideoPlaybackQuality === "function" ? video.getVideoPlaybackQuality() : null
+        };
+        log("info", "Stream compatibility report", report);
+      });
+    }
+
+    function detectPageChange() {
+      guard("page-detection", function(){
+        var nextVideoId = getVideoId();
+        if (nextVideoId !== state.videoId) {
+          state.videoId = nextVideoId;
+          log("info", "Video page changed", { videoId: state.videoId, href: location.href });
+        }
+        applyPlayerState();
+        injectButtons();
+        updateDebugPanel();
+      });
+    }
+
+    function observeDom() {
+      guard("mutation-observer", function(){
+        var queued = false;
+        var observer = new MutationObserver(function(){
+          if (queued) return;
+          queued = true;
+          setTimeout(function(){ queued = false; detectPageChange(); }, 100);
+        });
+        observer.observe(document.documentElement, { childList: true, subtree: true });
+      });
+    }
+
+    function hookNavigation() {
+      guard("spa-navigation", function(){
+        window.addEventListener("yt-navigate-finish", detectPageChange, true);
+        window.addEventListener("yt-page-data-updated", detectPageChange, true);
+        window.addEventListener("popstate", detectPageChange, true);
+        ["pushState", "replaceState"].forEach(function(name){
+          var original = history[name];
+          if (!original || original.__ytcenterModernWrapped) return;
+          history[name] = function(){
+            var result = original.apply(this, arguments);
+            setTimeout(detectPageChange, 0);
+            return result;
+          };
+          history[name].__ytcenterModernWrapped = true;
+        });
+      });
+    }
+
+    function compatibilityReport() {
+      guard("compatibility-report", function(){
+        log("info", "Compatibility report", {
+          userAgent: getNavigator().userAgent,
+          userscriptModernGM: typeof GM === "object",
+          userscriptLegacyGM: typeof GM_getValue !== "undefined" || typeof GM_xmlhttpRequest !== "undefined",
+          mutationObserver: typeof MutationObserver !== "undefined",
+          customElements: typeof customElements !== "undefined",
+          trustedTypes: typeof trustedTypes !== "undefined",
+          url: location.href,
+          features: state.features
+        });
+      });
+    }
+
+    guard("startup", function(){
+      if (state.started) return;
+      state.started = true;
+      loadSettings();
+      ensureStyle();
+      ensureDebugPanel();
+      ensureLightsLayer();
+      hookNavigation();
+      observeDom();
+      detectPageChange();
+      compatibilityReport();
+      log("info", "Modern compatibility layer started");
+    });
+  }
+
   var loc = (function(){
     try {
       if (typeof location !== "undefined") return location;
@@ -26836,6 +27234,11 @@
   })();
   if (isDomainAllowed(domains)) { // Let's do a check to see if YouTube Center Developer Build should run.
     console.log("Domain registered " + document.domain + ".");
+    try {
+      initModernCompatibilityLayer();
+    } catch (e) {
+      console.warn("[YouTubeCenter] Modern compatibility layer failed during startup", e);
+    }
     
     if (isEmbeddedVideo() && isCookieEnabled()) {
       console.log("cookie");
